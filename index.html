@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Agri CRM Pro - Mobile Edition</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+        }
+        [v-cloak] { display: none; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .touch-target { min-height: 44px; min-width: 44px; }
+        
+        /* Smooth Slide Transitions */
+        .slide-enter-active, .slide-leave-active { transition: transform 0.3s ease; }
+        .slide-enter-from { transform: translateX(-100%); }
+        .slide-leave-to { transform: translateX(-100%); }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+
+        /* Card Layout for Mobile Tables */
+        @media (max-width: 768px) {
+            .responsive-table thead { display: none; }
+            .responsive-table tr { 
+                display: block; 
+                margin-bottom: 1rem; 
+                background: white; 
+                border-radius: 1.5rem; 
+                padding: 1rem;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            .responsive-table td { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center;
+                padding: 0.5rem 0;
+                border: none !important;
+            }
+            .responsive-table td::before {
+                content: attr(data-label);
+                font-weight: 800;
+                color: #64748b;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+            }
+            .responsive-table td.actions {
+                justify-content: flex-end;
+                border-top: 1px solid #f1f5f9 !important;
+                margin-top: 0.5rem;
+                padding-top: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+    <div id="app" v-cloak class="min-h-screen flex flex-col">
+        
+        <!-- Loading Overlay -->
+        <div v-if="authLoading" class="fixed inset-0 z-[200] flex items-center justify-center bg-white">
+            <div class="flex flex-col items-center">
+                <div class="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
+                <p class="mt-4 font-bold text-emerald-800">กำลังเปิดระบบ...</p>
+            </div>
+        </div>
+
+        <!-- Login Screen -->
+        <div v-else-if="!user" class="min-h-screen flex items-center justify-center bg-emerald-900 p-6">
+            <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-10 text-center shadow-2xl">
+                <div class="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-600">
+                    <i data-lucide="sprout" class="w-10 h-10"></i>
+                </div>
+                <h1 class="text-3xl font-black mb-2">Agri CRM</h1>
+                <p class="text-slate-500 mb-10">ระบบจัดการฟาร์มอัจฉริยะ</p>
+                <button @click="login" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-3 active:scale-95 transition-transform">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+                    เข้าสู่ระบบด้วย Google
+                </button>
+            </div>
+        </div>
+
+        <!-- Authenticated App -->
+        <div v-else class="flex-1 flex flex-col md:flex-row h-screen overflow-hidden">
+            
+            <!-- Mobile Header -->
+            <header class="md:hidden bg-white border-b border-slate-200 px-4 h-16 flex items-center justify-between shrink-0 sticky top-0 z-40">
+                <button @click="mobileMenuOpen = true" class="p-2 touch-target flex items-center justify-center text-slate-600">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div class="flex items-center gap-2">
+                    <i data-lucide="tractor" class="w-5 h-5 text-emerald-600"></i>
+                    <span class="font-black italic text-lg tracking-tight">FARM<span class="text-emerald-500">PRO</span></span>
+                </div>
+                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500">
+                    <img :src="user.photoURL" class="w-full h-full object-cover">
+                </div>
+            </header>
+
+            <!-- Sidebar (Desktop) & Slide-over (Mobile) -->
+            <transition name="slide">
+                <aside v-if="mobileMenuOpen || isDesktop" class="fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col md:relative md:translate-x-0">
+                    <!-- Sidebar Header -->
+                    <div class="p-8 flex items-center justify-between border-b border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-500 p-2 rounded-xl">
+                                <i data-lucide="leaf" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <span class="font-black text-xl italic uppercase">Farm<span class="text-emerald-400">Pro</span></span>
+                        </div>
+                        <button @click="mobileMenuOpen = false" class="md:hidden p-2 text-slate-400">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <!-- Navigation -->
+                    <nav class="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+                        <button v-for="item in menuItems" :key="item.view" 
+                            @click="setView(item.view)"
+                            :class="['w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold', currentView === item.view ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800']">
+                            <i :data-lucide="item.icon" class="w-5 h-5"></i>
+                            <span>{{ item.label }}</span>
+                        </button>
+                    </nav>
+
+                    <!-- User Footer -->
+                    <div class="p-4 bg-slate-950/50 border-t border-slate-800">
+                        <button @click="logout" class="w-full flex items-center gap-3 p-4 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors font-bold">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </aside>
+            </transition>
+
+            <!-- Backdrop for mobile menu -->
+            <div v-if="mobileMenuOpen" @click="mobileMenuOpen = false" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden"></div>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 overflow-y-auto relative bg-slate-50 custom-scrollbar safe-bottom">
+                
+                <!-- Desktop View Title (Hidden on Mobile) -->
+                <div class="hidden md:flex p-8 justify-between items-center bg-white border-b border-slate-200">
+                    <h2 class="text-3xl font-black text-slate-800">{{ currentMenuLabel }}</h2>
+                    <div class="flex items-center gap-4">
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                            <input v-model="searchQuery" type="text" placeholder="ค้นหาข้อมูล..." class="pl-12 pr-6 py-3 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 w-64 transition-all">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 md:p-8 space-y-6">
+                    
+                    <!-- View: DASHBOARD (Responsive Grid) -->
+                    <div v-if="currentView === 'dashboard'" class="space-y-6">
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                            <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ฟาร์ม</p>
+                                <p class="text-2xl font-black text-slate-800">{{ farms.length }}</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">งานค้าง</p>
+                                <p class="text-2xl font-black text-blue-600">{{ pendingJobsCount }}</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">รายรับ</p>
+                                <p class="text-2xl font-black text-emerald-600">฿{{ (globalIncome/1000).toFixed(1) }}k</p>
+                            </div>
+                            <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">รายจ่าย</p>
+                                <p class="text-2xl font-black text-red-500">฿{{ (globalExpense/1000).toFixed(1) }}k</p>
+                            </div>
+                        </div>
+
+                        <!-- Recent Jobs List (Mobile Cards) -->
+                        <div class="bg-white rounded-[2rem] p-6 border border-slate-100">
+                            <h3 class="font-black text-lg mb-4 flex items-center justify-between">
+                                งานเร็วๆ นี้
+                                <button @click="setView('jobs')" class="text-emerald-600 text-xs font-bold uppercase">ดูทั้งหมด</button>
+                            </h3>
+                            <div class="space-y-3">
+                                <div v-for="job in jobs.slice(0,3)" :key="job.id" class="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                    <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                                        <i data-lucide="calendar"></i>
+                                    </div>
+                                    <div class="flex-1 overflow-hidden">
+                                        <p class="font-bold text-sm truncate">{{ job.title }}</p>
+                                        <p class="text-xs text-slate-400">{{ job.appointmentDate }}</p>
+                                    </div>
+                                    <span :class="getStatusBadge(job.status)" class="text-[10px] px-2 py-1 rounded-lg font-black shrink-0">{{ job.status }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- View: FARMS (Responsive Cards) -->
+                    <div v-if="currentView === 'farms'" class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-xl font-black md:hidden">พื้นที่ฟาร์ม ({{ farms.length }})</h3>
+                            <button @click="openFarmModal()" class="hidden md:flex bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold items-center gap-2">
+                                <i data-lucide="plus"></i> เพิ่มฟาร์มใหม่
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div v-for="farm in filteredFarms" :key="farm.id" class="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm group">
+                                <div class="h-48 bg-slate-200 relative">
+                                    <img v-if="farm.images && farm.images.length > 0" :src="farm.images[0].image_url" class="w-full h-full object-cover">
+                                    <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                                        <i data-lucide="image" class="w-12 h-12"></i>
+                                    </div>
+                                    <div class="absolute top-4 right-4 flex gap-2">
+                                        <button @click="openFarmModal(farm)" class="p-2 bg-white/90 rounded-xl text-blue-600 shadow-sm touch-target"><i data-lucide="edit-3" class="w-5 h-5"></i></button>
+                                        <button @click="deleteItem('farms', farm.id)" class="p-2 bg-white/90 rounded-xl text-red-600 shadow-sm touch-target"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                    </div>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h4 class="text-xl font-black text-slate-800">{{ farm.name }}</h4>
+                                            <p class="text-emerald-600 font-bold text-xs">{{ farm.cropType }}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xl font-black">{{ farm.size }} ไร่</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 mb-4">
+                                        <button v-for="(img, idx) in (farm.images || []).slice(0,4)" :key="idx" class="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 shrink-0">
+                                            <img :src="img.image_url" class="w-full h-full object-cover">
+                                        </button>
+                                        <button @click="triggerImageUpload(farm.id)" class="w-10 h-10 rounded-xl border-2 border-dashed border-emerald-200 flex items-center justify-center text-emerald-500 shrink-0 touch-target">
+                                            <i data-lucide="camera" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                    <button @click="setView('jobs', farm.id)" class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm active:bg-slate-200">ดูรายการงาน</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- View: JOBS (Responsive Table/Cards) -->
+                    <div v-if="currentView === 'jobs'" class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-xl font-black md:hidden">ตารางงาน</h3>
+                            <div class="md:hidden flex gap-2">
+                                <button @click="sortBy('appointmentDate')" class="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 touch-target">
+                                    <i data-lucide="sort-desc" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-white md:rounded-[2rem] md:border border-slate-100 md:shadow-sm overflow-hidden p-2 md:p-0">
+                            <table class="w-full responsive-table">
+                                <thead class="bg-slate-50 border-b border-slate-100 text-[11px] font-black text-slate-400 uppercase">
+                                    <tr>
+                                        <th class="px-8 py-6">ชื่องาน</th>
+                                        <th class="px-8 py-6">ฟาร์ม</th>
+                                        <th class="px-8 py-6">นัดหมาย</th>
+                                        <th class="px-8 py-6">สถานะ</th>
+                                        <th class="px-8 py-6 text-right">กำไรสุทธิ</th>
+                                        <th class="px-8 py-6 text-right">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="job in sortedJobs" :key="job.id" class="hover:bg-emerald-50/20">
+                                        <td class="px-8 py-6 font-black" data-label="ชื่องาน">{{ job.title }}</td>
+                                        <td class="px-8 py-6 text-slate-500" data-label="ฟาร์ม">{{ getFarmName(job.farmId) }}</td>
+                                        <td class="px-8 py-6 text-slate-500" data-label="นัดหมาย">{{ job.appointmentDate }}</td>
+                                        <td class="px-8 py-6" data-label="สถานะ">
+                                            <span :class="getStatusBadge(job.status)" class="text-[10px] px-3 py-1 rounded-full font-black uppercase">{{ job.status }}</span>
+                                        </td>
+                                        <td class="px-8 py-6 text-right font-black text-emerald-600" data-label="กำไร">฿{{ getJobProfit(job.id).toLocaleString() }}</td>
+                                        <td class="px-8 py-6 text-right actions">
+                                            <div class="flex justify-end gap-3">
+                                                <button @click="openJobModal(job)" class="p-3 text-blue-600 bg-blue-50 md:bg-transparent rounded-xl touch-target"><i data-lucide="edit-3" class="w-5 h-5"></i></button>
+                                                <button @click="deleteItem('jobs', job.id)" class="p-3 text-red-600 bg-red-50 md:bg-transparent rounded-xl touch-target"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- View: FINANCE (Mobile Card Layout) -->
+                    <div v-if="currentView === 'finance'" class="space-y-6 pb-20">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-white p-6 rounded-[2rem] border-2 border-emerald-500/10 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0"><i data-lucide="arrow-up-right"></i></div>
+                                <div><p class="text-xs font-black text-slate-400">รายรับ</p><p class="text-2xl font-black text-emerald-600">฿{{ globalIncome.toLocaleString() }}</p></div>
+                            </div>
+                            <div class="bg-white p-6 rounded-[2rem] border-2 border-red-500/10 shadow-sm flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0"><i data-lucide="arrow-down-left"></i></div>
+                                <div><p class="text-xs font-black text-slate-400">รายจ่าย</p><p class="text-2xl font-black text-red-500">฿{{ globalExpense.toLocaleString() }}</p></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-[2rem] overflow-hidden">
+                            <table class="w-full responsive-table">
+                                <thead class="bg-slate-50 border-b border-slate-100 text-[11px] font-black text-slate-400 uppercase">
+                                    <tr>
+                                        <th class="px-8 py-6">วันที่</th>
+                                        <th class="px-8 py-6">รายละเอียด</th>
+                                        <th class="px-8 py-6 text-right">จำนวนเงิน</th>
+                                        <th class="px-8 py-6 text-right">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="record in sortedFinance" :key="record.id">
+                                        <td class="px-8 py-6 text-slate-500" data-label="วันที่">{{ record.date }}</td>
+                                        <td class="px-8 py-6 font-black" data-label="รายการ">
+                                            {{ record.description }}
+                                            <div class="text-[10px] text-blue-600">#{{ getJobTitle(record.job_id) }}</div>
+                                        </td>
+                                        <td class="px-8 py-6 text-right font-black" :class="record.type === 'income' ? 'text-emerald-600' : 'text-red-500'" data-label="จำนวน">
+                                            {{ record.type === 'income' ? '+' : '-' }} ฿{{ record.amount.toLocaleString() }}
+                                        </td>
+                                        <td class="px-8 py-6 text-right actions">
+                                            <div class="flex justify-end gap-2">
+                                                <button @click="openFinanceModal(record.type, record)" class="p-2 text-blue-600 touch-target"><i data-lucide="edit-3" class="w-5 h-5"></i></button>
+                                                <button @click="deleteItem('financial_records', record.id)" class="p-2 text-red-600 touch-target"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Floating Action Button (Mobile) -->
+                <div class=" fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+                    <transition-group name="slide">
+                        <button v-if="fabOpen" @click="openFarmModal()" class="bg-white text-slate-800 p-4 rounded-full shadow-xl font-bold flex items-center gap-2 border border-slate-100 mb-2">
+                            <i data-lucide="map-pin" class="w-5 h-5"></i> เพิ่มฟาร์ม
+                        </button>
+                        <button v-if="fabOpen" @click="openJobModal()" class="bg-white text-slate-800 p-4 rounded-full shadow-xl font-bold flex items-center gap-2 border border-slate-100 mb-2">
+                            <i data-lucide="calendar" class="w-5 h-5"></i> เพิ่มงาน
+                        </button>
+                        <button v-if="fabOpen" @click="openFinanceModal('income')" class="bg-emerald-600 text-white p-4 rounded-full shadow-xl font-bold flex items-center gap-2 mb-2">
+                            <i data-lucide="banknote" class="w-5 h-5"></i> บันทึกบัญชี +
+                        </button>
+                        <button v-if="fabOpen" @click="openFinanceModal('expense')" class="bg-emerald-600 text-white p-4 rounded-full shadow-xl font-bold flex items-center gap-2 mb-2">
+                            <i data-lucide="banknote" class="w-5 h-5"></i> บันทึกบัญชี -
+                        </button>
+                    </transition-group>
+                    <button @click="fabOpen = !fabOpen" :class="fabOpen ? 'bg-slate-800 rotate-45' : 'bg-emerald-600'" class="w-16 h-16 rounded-full text-white shadow-2xl flex items-center justify-center transition-all">
+                        <i data-lucide="plus" class="w-8 h-8"></i>
+                    </button>
+                </div>
+            </main>
+        </div>
+
+        <!-- MODAL: Farm Form (Responsive) -->
+        <div v-if="showFarmModal" class="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 animate-in">
+            <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="showFarmModal = false"></div>
+            <div class="relative bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-black">{{ editingItem ? 'แก้ไขฟาร์ม' : 'เพิ่มฟาร์มใหม่' }}</h3>
+                    <button @click="showFarmModal = false" class="p-2 text-slate-400 touch-target"><i data-lucide="x"></i></button>
+                </div>
+                <div class="space-y-5">
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">ชื่อฟาร์ม/แปลง</label>
+                        <input v-model="farmForm.name" type="text" placeholder="ระบุชื่อแปลง" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold border-none outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="space-y-1">
+                            <label class="text-xs font-black text-slate-400 ml-1 text-slate-400">ประเภทพืช</label>
+                            <input v-model="farmForm.cropType" type="text" placeholder="เช่น ข้าวนาปรัง" class="w-full h-14 bg-slate-100 rounded-2xl px-5">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-black text-slate-400 ml-1">ขนาด (ไร่)</label>
+                            <input v-model.number="farmForm.size" type="number" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-black">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">ชื่อเจ้าของ</label>
+                        <input v-model="farmForm.owner" type="text" placeholder="ชื่อ-นามสกุล" class="w-full h-14 bg-slate-100 rounded-2xl px-5">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">เบอร์ติดต่อ</label>
+                        <input v-model="farmForm.phone" type="tel" placeholder="0xx-xxxxxxx" class="w-full h-14 bg-slate-100 rounded-2xl px-5">
+                    </div>
+                </div>
+                <div class="mt-8 flex flex-col md:flex-row gap-3">
+                    <button @click="saveFarm" class="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg shadow-emerald-200">บันทึกข้อมูล</button>
+                    <button @click="showFarmModal = false" class="md:w-32 py-4 text-slate-400 font-bold">ยกเลิก</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: Job Form (Responsive) -->
+        <div v-if="showJobModal" class="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
+            <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="showJobModal = false"></div>
+            <div class="relative bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 max-h-[90vh] overflow-y-auto">
+                <h3 class="text-2xl font-black mb-6">{{ editingItem ? 'แก้ไขงาน' : 'เพิ่มงานใหม่' }}</h3>
+                <div class="space-y-5">
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">ชื่องาน/กิจกรรม</label>
+                        <input v-model="jobForm.title" type="text" placeholder="เช่น หว่านปุ๋ยรอบสอง" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">ฟาร์ม</label>
+                        <select v-model="jobForm.farmId" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold appearance-none">
+                            <option value="" disabled>เลือกฟาร์ม</option>
+                            <option v-for="f in farms" :value="f.id">{{ f.name }}</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-black text-slate-400 ml-1">วันนัดหมาย</label>
+                            <input v-model="jobForm.appointmentDate" type="date" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-black text-slate-400 ml-1">ค่าจ้างตั้งต้น</label>
+                            <input v-model.number="jobForm.income" type="number" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-black">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">สถานะ</label>
+                        <select v-model="jobForm.status" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                            <option value="วางแผน">วางแผน</option>
+                            <option value="กำลังทำ">กำลังทำ</option>
+                            <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+                            <option value="ยกเลิก">ยกเลิก</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-8 flex flex-col md:flex-row gap-3">
+                    <button @click="saveJob" class="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg">บันทึกรายการ</button>
+                    <button @click="showJobModal = false" class="md:w-32 py-4 text-slate-400 font-bold">ยกเลิก</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: Finance Form -->
+        <div v-if="showFinanceModal" class="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
+            <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" @click="showFinanceModal = false"></div>
+            <div class="relative bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] p-8">
+                <h3 class="text-2xl font-black mb-6" :class="financeForm.type === 'income' ? 'text-emerald-600' : 'text-red-500'">
+                    {{ financeForm.type === 'income' ? 'บันทึกรายรับ' : 'บันทึกรายจ่าย' }}
+                </h3>
+                <div class="space-y-5">
+                    <input v-model="financeForm.description" type="text" placeholder="ระบุรายการ เช่น ค่าจ้างรถเกี่ยว" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input v-model.number="financeForm.amount" type="number" placeholder="จำนวนเงิน" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-black">
+                        <input v-model="financeForm.date" type="date" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-black text-slate-400 ml-1">เชื่อมโยงงาน (ถ้ามี)</label>
+                        <select v-model="financeForm.job_id" class="w-full h-14 bg-slate-100 rounded-2xl px-5 font-bold">
+                            <option :value="null">-- ไม่เชื่อมโยงงาน --</option>
+                            <option v-for="j in jobs" :value="j.id">{{ j.title }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-8 flex flex-col md:flex-row gap-3">
+                    <button @click="saveFinance" :class="financeForm.type === 'income' ? 'bg-emerald-600' : 'bg-red-500'" class="flex-1 py-4 text-white rounded-2xl font-black shadow-lg">ยืนยันบันทึก</button>
+                    <button @click="showFinanceModal = false" class="md:w-32 py-4 text-slate-400 font-bold">ยกเลิก</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden Image Input -->
+        <input type="file" id="imageInput" multiple accept="image/*" class="hidden" @change="handleImageUpload">
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, arrayUnion, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {  apiKey: "AIzaSyAh44MauKz9h63G0MuzVOq29UdI3YoEXaA",
+  authDomain: "goal-os-3bbf9.firebaseapp.com",
+  projectId: "goal-os-3bbf9",
+  storageBucket: "goal-os-3bbf9.firebasestorage.app",
+  messagingSenderId: "532581820636",
+  appId: "1:532581820636:web:e3acfaa45312566c4fac19",
+  measurementId: "G-CMQ14VTY72"}
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'agri-pro-mobile';
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const { createApp, ref, onMounted, computed, nextTick, watch } = Vue;
+
+        createApp({
+            setup() {
+                const user = ref(null);
+                const authLoading = ref(true);
+                const currentView = ref('dashboard');
+                const mobileMenuOpen = ref(false);
+                const fabOpen = ref(false);
+                const isDesktop = ref(window.innerWidth >= 768);
+                const searchQuery = ref('');
+
+                // Data Collections
+                const farms = ref([]);
+                const jobs = ref([]);
+                const financeRecords = ref([]);
+                
+                // Form States
+                const showFarmModal = ref(false);
+                const showJobModal = ref(false);
+                const showFinanceModal = ref(false);
+                const editingItem = ref(null);
+                const activeFarmIdForPhoto = ref(null);
+
+                const farmForm = ref({ name: '', owner: '', cropType: '', size: 0, phone: '', images: [] });
+                const jobForm = ref({ title: '', farmId: '', appointmentDate: '', income: 0, status: 'วางแผน' });
+                const financeForm = ref({ type: 'income', amount: 0, date: '', description: '', job_id: null });
+
+                // Sorting
+                const sortKey = ref('appointmentDate');
+                const sortOrder = ref('desc');
+
+                // Responsive Helpers
+                window.addEventListener('resize', () => {
+                    isDesktop.value = window.innerWidth >= 768;
+                    if (isDesktop.value) mobileMenuOpen.value = false;
+                });
+
+                const currentMenuLabel = computed(() => {
+                    return menuItems.find(i => i.view === currentView.value)?.label || 'หน้าหลัก';
+                });
+
+                const setView = (v, param = null) => {
+                    currentView.value = v;
+                    mobileMenuOpen.value = false;
+                    fabOpen.value = false;
+                    if (v === 'jobs' && param) searchQuery.value = getFarmName(param);
+                    else searchQuery.value = '';
+                    nextTick(() => lucide.createIcons());
+                };
+
+                const filteredFarms = computed(() => {
+                    if (!searchQuery.value) return farms.value;
+                    const q = searchQuery.value.toLowerCase();
+                    return farms.value.filter(f => f.name.toLowerCase().includes(q) || f.owner.toLowerCase().includes(q));
+                });
+
+                const sortedJobs = computed(() => {
+                    let items = [...jobs.value];
+                    if (searchQuery.value) {
+                        const q = searchQuery.value.toLowerCase();
+                        items = items.filter(j => j.title.toLowerCase().includes(q) || getFarmName(j.farmId).toLowerCase().includes(q));
+                    }
+                    return items.sort((a,b) => {
+                        let vA = a[sortKey.value], vB = b[sortKey.value];
+                        return sortOrder.value === 'asc' ? (vA < vB ? -1 : 1) : (vA > vB ? -1 : 1);
+                    });
+                });
+
+                const sortedFinance = computed(() => [...financeRecords.value].sort((a,b) => new Date(b.date) - new Date(a.date)));
+
+                const globalIncome = computed(() => financeRecords.value.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0));
+                const globalExpense = computed(() => financeRecords.value.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0));
+                const pendingJobsCount = computed(() => jobs.value.filter(j => j.status === 'วางแผน' || j.status === 'กำลังทำ').length);
+
+                const getFarmName = (id) => farms.value.find(f => f.id === id)?.name || 'ไม่ระบุ';
+                const getJobTitle = (id) => jobs.value.find(j => j.id === id)?.title || 'ทั่วไป';
+                const getStatusBadge = (s) => {
+                    const map = { 'เสร็จสิ้น': 'bg-emerald-100 text-emerald-700', 'กำลังทำ': 'bg-blue-100 text-blue-700', 'วางแผน': 'bg-slate-100 text-slate-500', 'ยกเลิก': 'bg-red-100 text-red-600' };
+                    return map[s] || 'bg-slate-50';
+                };
+
+                const getJobProfit = (jobId) => {
+                    const job = jobs.value.find(j => j.id === jobId);
+                    const baseIncome = job ? Number(job.income || 0) : 0;
+                    const related = financeRecords.value.filter(r => r.job_id === jobId);
+                    const inc = related.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+                    const exp = related.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+                    return baseIncome + inc - exp;
+                };
+
+                // Operations
+                const openFarmModal = (item = null) => {
+                    editingItem.value = item;
+                    farmForm.value = item ? { ...item } : { name: '', owner: '', cropType: '', size: 0, phone: '', images: [] };
+                    showFarmModal.value = true;
+                };
+
+                const openJobModal = (item = null) => {
+                    editingItem.value = item;
+                    jobForm.value = item ? { ...item } : { title: '', farmId: farms.value[0]?.id || '', appointmentDate: new Date().toISOString().split('T')[0], income: 0, status: 'วางแผน' };
+                    showJobModal.value = true;
+                };
+
+                const openFinanceModal = (type = 'income', item = null) => {
+                    editingItem.value = item;
+                    financeForm.value = item ? { ...item } : { type, amount: 0, date: new Date().toISOString().split('T')[0], description: '', job_id: null };
+                    showFinanceModal.value = true;
+                };
+
+                const saveFarm = async () => {
+                    if (!user.value) return;
+                    const path = collection(db, 'artifacts', appId, 'public', 'data', 'farms');
+                    if (editingItem.value) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'farms', editingItem.value.id), farmForm.value);
+                    else await addDoc(path, { ...farmForm.value, created_at: serverTimestamp() });
+                    showFarmModal.value = false;
+                };
+
+                const saveJob = async () => {
+                    if (!user.value) return;
+                    const path = collection(db, 'artifacts', appId, 'public', 'data', 'jobs');
+                    if (editingItem.value) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'jobs', editingItem.value.id), jobForm.value);
+                    else await addDoc(path, { ...jobForm.value, created_at: serverTimestamp() });
+                    showJobModal.value = false;
+                };
+
+                const saveFinance = async () => {
+                    if (!user.value) return;
+                    const path = collection(db, 'artifacts', appId, 'public', 'data', 'financial_records');
+                    if (editingItem.value) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financial_records', editingItem.value.id), financeForm.value);
+                    else await addDoc(path, { ...financeForm.value, created_at: serverTimestamp() });
+                    showFinanceModal.value = false;
+                };
+
+                const deleteItem = async (col, id) => {
+                    if (confirm('คุณแน่ใจว่าต้องการลบข้อมูลนี้?')) {
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+                    }
+                };
+
+                const triggerImageUpload = (farmId) => {
+                    activeFarmIdForPhoto.value = farmId;
+                    document.getElementById('imageInput').click();
+                };
+
+                const handleImageUpload = (e) => {
+                    const files = e.target.files;
+                    if (!files.length) return;
+                    Array.from(files).forEach(file => {
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                            const farmRef = doc(db, 'artifacts', appId, 'public', 'data', 'farms', activeFarmIdForPhoto.value);
+                            await updateDoc(farmRef, {
+                                images: arrayUnion({
+                                    image_url: event.target.result,
+                                    uploaded_at: new Date().toISOString()
+                                })
+                            });
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                };
+
+                const sortBy = (key) => {
+                    if (sortKey.value === key) sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+                    else { sortKey.value = key; sortOrder.value = 'asc'; }
+                };
+
+                const login = async () => {
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                };
+
+                const logout = () => signOut(auth);
+
+                onMounted(async () => {
+                    // Auth
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                        else await signInAnonymously(auth);
+                    } catch (e) {}
+
+                    onAuthStateChanged(auth, (u) => {
+                        user.value = u;
+                        authLoading.value = false;
+                        if (u) {
+                            // Rule 1: Listeners with proper paths
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'farms'), (s) => farms.value = s.docs.map(d => ({id: d.id, ...d.data()})));
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'jobs'), (s) => jobs.value = s.docs.map(d => ({id: d.id, ...d.data()})));
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'financial_records'), (s) => financeRecords.value = s.docs.map(d => ({id: d.id, ...d.data()})));
+                        }
+                        nextTick(() => lucide.createIcons());
+                    });
+                });
+
+                watch(currentView, () => nextTick(() => lucide.createIcons()));
+                watch(fabOpen, () => nextTick(() => lucide.createIcons()));
+
+                const menuItems = [
+                    { label: 'แดชบอร์ด', view: 'dashboard', icon: 'layout-grid' },
+                    { label: 'จัดการฟาร์ม', view: 'farms', icon: 'map' },
+                    { label: 'ตารางงาน', view: 'jobs', icon: 'calendar-days' },
+                    { label: 'รายรับรายจ่าย', view: 'finance', icon: 'banknote' }
+                ];
+
+                return {
+                    user, authLoading, currentView, currentMenuLabel, menuItems, setView,
+                    mobileMenuOpen, fabOpen, isDesktop, searchQuery,
+                    farms, jobs, financeRecords, filteredFarms, sortedJobs, sortedFinance,
+                    globalIncome, globalExpense, pendingJobsCount, getFarmName, getJobTitle, getStatusBadge, getJobProfit,
+                    showFarmModal, showJobModal, showFinanceModal, editingItem,
+                    farmForm, jobForm, financeForm, openFarmModal, openJobModal, openFinanceModal,
+                    saveFarm, saveJob, saveFinance, deleteItem, triggerImageUpload, handleImageUpload, sortBy,
+                    login, logout
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
