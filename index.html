@@ -668,10 +668,13 @@
 
                 onMounted(async () => {
                     // Auth
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                        else await signInAnonymously(auth);
-                    } catch (e) {}
+try {
+    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+    }
+} catch (e) {
+    console.log(e);
+}
 
                     onAuthStateChanged(auth, (u) => {
                         user.value = u;
